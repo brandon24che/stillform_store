@@ -38,6 +38,11 @@ export default function SettingsPage() {
       toast("Turn on at least one payment method before opening checkout.", "negative");
       return;
     }
+    const whatsappDigits = (s.contact?.whatsapp ?? "").replace(/\D/g, "").replace(/^00/, "");
+    if (whatsappDigits && (whatsappDigits.length < 8 || whatsappDigits.length > 15)) {
+      toast("The WhatsApp number needs 8–15 digits including the country code, e.g. +44 7700 900123.", "negative");
+      return;
+    }
     setSaving(true);
     try {
       await api.saveSettings(
@@ -108,13 +113,17 @@ export default function SettingsPage() {
           <div className="grid gap-5">
             <Field label="Email" htmlFor="s-email"><Input id="s-email" type="email" value={s.contact?.email ?? ""} onChange={(e) => setS({ ...s, contact: { ...s.contact, email: e.target.value } })} /></Field>
             <Field label="Phone" htmlFor="s-phone" optional><Input id="s-phone" value={s.contact?.phone ?? ""} onChange={(e) => setS({ ...s, contact: { ...s.contact, phone: e.target.value } })} /></Field>
+            <Field label="WhatsApp number" htmlFor="s-wa" hint="International format with country code, e.g. +44 7700 900123. Customers finish their order in this chat." optional>
+              <Input id="s-wa" type="tel" inputMode="tel" placeholder="+44 7700 900123" value={s.contact?.whatsapp ?? ""} onChange={(e) => setS({ ...s, contact: { ...s.contact, whatsapp: e.target.value } })} />
+            </Field>
             <Field label="Address" htmlFor="s-addr" optional><Textarea id="s-addr" rows={2} value={s.contact?.address ?? ""} onChange={(e) => setS({ ...s, contact: { ...s.contact, address: e.target.value } })} /></Field>
           </div>
         </Panel>
 
-        <Panel id="checkout" title="Checkout" description="STILLFORM takes orders without card payments: customers choose one of the methods below and you mark orders as paid when the money arrives.">
+        <Panel id="checkout" title="Checkout" description="Orders are recorded here first, then the customer sends them to you on WhatsApp with one click. Card details are never taken on the site.">
           <div className="flex flex-col gap-5">
             <Toggle checked={checkout.enabled} onChange={(on) => setS({ ...s, checkout: { ...checkout, enabled: on } })} label="Open checkout" description="When closed, customers can browse and fill their bag but can’t place orders." />
+            {checkout.enabled && !(s.contact?.whatsapp ?? "").trim() && <Notice tone="attention">Add a WhatsApp number under Contact so customers can finish their order in chat.</Notice>}
             {checkout.enabled && !methods.some((m) => m.enabled) && <Notice tone="attention">Turn on at least one payment method.</Notice>}
             {methods.map((method) => (
               <div key={method.id} className="flex flex-col gap-3 border-t border-ink/10 pt-4">

@@ -1,6 +1,8 @@
 import { Link, useLocation, useParams } from "react-router";
 import { useCatalog } from "@/catalog/CatalogProvider";
 import { recallOrder, type PlacedOrder } from "@/checkout/checkout";
+import { recallWhatsAppLink } from "@/checkout/whatsapp";
+import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { useDocumentTitle } from "@/lib/hooks";
 
 export default function OrderConfirmationPage() {
@@ -8,6 +10,7 @@ export default function OrderConfirmationPage() {
   const { reference = "" } = useParams();
   const { state } = useLocation();
   const order = ((state as PlacedOrder | null)?.reference === reference ? (state as PlacedOrder) : null) ?? recallOrder(reference);
+  const whatsapp = recallWhatsAppLink(reference);
   useDocumentTitle(`Order ${reference} — ${catalog.settings.name}`);
   const money = (minor: number) => new Intl.NumberFormat(catalog.settings.locale, { style: "currency", currency: order?.currency ?? catalog.settings.currency, minimumFractionDigits: minor % 100 === 0 ? 0 : 2 }).format(minor / 100);
 
@@ -49,6 +52,18 @@ export default function OrderConfirmationPage() {
             <div className="flex justify-between"><dt className="text-muted-foreground">Shipping</dt><dd className="tabular">{order.shipping === 0 ? "Included" : money(order.shipping)}</dd></div>
             <div className="flex justify-between border-t border-border pt-2 text-[16px]"><dt>Total</dt><dd className="tabular">{money(order.total)}</dd></div>
           </dl>
+          {whatsapp && (
+            <div className="mt-10 flex flex-col gap-4 border border-border p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-[13px] font-medium">Finish on WhatsApp</p>
+                <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">Send the order to the studio to confirm it.</p>
+              </div>
+              <a href={whatsapp} target="_blank" rel="noreferrer" className="inline-flex h-11 shrink-0 items-center justify-center gap-2 bg-foreground px-4 text-[12px] font-medium tracking-[0.06em] text-background transition-opacity hover:opacity-90">
+                <WhatsAppIcon className="size-4" />
+                Open chat
+              </a>
+            </div>
+          )}
         </>
       ) : (
         <p className="mt-8 text-[15px] leading-relaxed text-muted-foreground">Your order has been recorded. The full summary was shown when you placed it; contact the studio with your reference if you need a copy.</p>

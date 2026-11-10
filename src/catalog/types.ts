@@ -194,7 +194,7 @@ export interface StoreSettings {
   /** Sizes at or below this count show a low-stock note. */
   lowStockThreshold: number;
   orderPrefix?: string;
-  contact?: { email?: string; phone?: string; address?: string };
+  contact?: { email?: string; phone?: string; address?: string; /** International format; used for the WhatsApp checkout handoff. */ whatsapp?: string };
   checkout?: { enabled: boolean; methods: CheckoutMethod[] };
   /** Minor units. Free shipping applies when the subtotal reaches freeOver. */
   shipping?: { flatRate: number; freeOver: number | null; note?: string };

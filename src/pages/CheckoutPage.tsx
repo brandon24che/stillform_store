@@ -5,8 +5,10 @@ import { useBag } from "@/bag/BagProvider";
 import { useCatalogState } from "@/catalog/CatalogProvider";
 import { colorwayOf, formatPrice, variantBySku } from "@/catalog/selectors";
 import { checkoutAvailability, describeOrderError, placeOrder, rememberOrder, shippingFor, validateOrderForm, type FieldErrors, type OrderForm } from "@/checkout/checkout";
+import { orderMessage, rememberWhatsAppLink, whatsappLink, whatsappNumber } from "@/checkout/whatsapp";
 import { Turnstile, type TurnstileHandle } from "@/checkout/Turnstile";
 import { GarmentImage } from "@/components/GarmentImage";
+import { WhatsAppIcon } from "@/components/WhatsAppIcon";
 import { useDocumentTitle } from "@/lib/hooks";
 
 const EMPTY: OrderForm = { email: "", name: "", phone: "", line1: "", line2: "", city: "", region: "", postalCode: "", country: "", notes: "", paymentMethod: "" };
@@ -20,9 +22,17 @@ export default function CheckoutPage() {
   const [errors, setErrors] = React.useState<FieldErrors>({});
   const [problem, setProblem] = React.useState<string | null>(null);
   const [placing, setPlacing] = React.useState(false);
+  const [handoff, setHandoff] = React.useState<{ reference: string; url: string } | null>(null);
   const formRef = React.useRef<HTMLFormElement>(null);
   const verifier = React.useRef<TurnstileHandle>(null);
+  const whatsapp = whatsappNumber(catalog);
   useDocumentTitle(`Checkout — ${catalog.settings.name}`);
+
+  React.useEffect(() => {
+    if (!handoff) return;
+    const timer = setTimeout(() => window.location.assign(handoff.url), 1400);
+    return () => clearTimeout(timer);
+  }, [handoff]);
 
   const lines = bag.lines.flatMap((line) => {
     const found = variantBySku(catalog, line.sku);
@@ -30,6 +40,24 @@ export default function CheckoutPage() {
   });
   const subtotal = bagSubtotal(catalog, bag.lines);
   const shipping = shippingFor(catalog, subtotal);
+
+  if (handoff) {
+    return (
+      <Shell>
+        <p className="label text-muted-foreground">Order received</p>
+        <h1 className="type-wide mt-4 max-w-[20ch] text-[clamp(2rem,4vw,3rem)] font-extralight leading-tight">Almost there.</h1>
+        <p className="mt-6 max-w-[52ch] text-[15px] leading-relaxed text-muted-foreground">
+          Order <strong className="font-medium text-foreground">{handoff.reference}</strong> is saved. We’re opening WhatsApp with it ready to send — your order is confirmed once you send the message to the studio.
+        </p>
+        <a href={handoff.url} className="mt-10 inline-flex h-13 items-center gap-3 bg-foreground px-5 text-[13px] font-medium tracking-[0.06em] text-background transition-opacity hover:opacity-90">
+          <WhatsAppIcon className="size-4" />
+          Open WhatsApp
+        </a>
+        <p className="mt-4 text-[13px] leading-relaxed text-muted-foreground">If the chat doesn’t open on its own, use the button above.</p>
+        <Link to="/shop" className="label link-draw mt-10 inline-block py-1">Continue browsing</Link>
+      </Shell>
+    );
+  }
 
   if (!availability.open) {
     return (
@@ -77,7 +105,13 @@ export default function CheckoutPage() {
       rememberOrder(order);
       bag.dispatch({ type: "clear" });
       void reload();
-      navigate(`/order/${order.reference}`, { state: order, replace: true });
+      const url = whatsapp ? whatsappLink(whatsapp, orderMessage(order, form, (minor) => formatPrice(catalog, minor))) : null;
+      if (url) {
+        rememberWhatsAppLink(order.reference, url);
+        setHandoff({ reference: order.reference, url });
+      } else {
+        navigate(`/order/${order.reference}`, { state: order, replace: true });
+      }
     } catch (error) {
       const described = describeOrderError(error);
       setProblem(described.message);
@@ -139,7 +173,12 @@ export default function CheckoutPage() {
               ))}
               {errors.paymentMethod && <p id="payment-error" className="text-[13px] text-foreground">{errors.paymentMethod}</p>}
             </fieldset>
-            <p className="text-[13px] leading-relaxed text-muted-foreground">No card details are taken on this site. Your order is confirmed now and paid {chosen ? `by ${chosen.label.toLowerCase()}` : "as described above"}.</p>
+            <p className="text-[13px] leading-relaxed text-muted-foreground">
+              No card details are taken on this site.{" "}
+              {whatsapp
+                ? "Your order is recorded first, then we open WhatsApp so you can settle payment with the studio."
+                : `Your order is confirmed now and paid ${chosen ? chosen.label.toLowerCase() : "as described above"}.`}
+            </p>
           </Section>
         </div>
 
@@ -168,12 +207,26 @@ export default function CheckoutPage() {
               <div className="flex justify-between border-t border-border pt-3 text-[16px]"><dt>Total</dt><dd className="tabular">{formatPrice(catalog, subtotal + shipping)}</dd></div>
             </dl>
             {catalog.settings.shipping?.note && <p className="text-[12px] leading-relaxed text-muted-foreground">{catalog.settings.shipping.note}</p>}
+            {whatsapp && (
+              <div className="flex items-start gap-3 border-t border-border pt-5">
+                <span className="grid size-9 shrink-0 place-items-center border border-border">
+                  <WhatsAppIcon className="size-4" />
+                </span>
+                <div>
+                  <p className="text-[13px] font-medium">Finish in WhatsApp</p>
+                  <p className="mt-1 text-[12px] leading-relaxed text-muted-foreground">Your order is saved here first, then we open a chat with it ready to send.</p>
+                </div>
+              </div>
+            )}
             <div>
               <Turnstile ref={verifier} />
               <div aria-live="assertive">{problem && <p className="border-l-2 border-foreground pl-3 text-[13px] leading-relaxed">{problem}</p>}</div>
             </div>
             <button type="submit" disabled={placing} className="flex h-13 items-center justify-between bg-foreground px-5 text-[13px] font-medium tracking-[0.06em] text-background transition-opacity disabled:opacity-60">
-              <span>{placing ? "Placing order…" : "Place order"}</span>
+              <span className="flex items-center gap-3">
+                {whatsapp && <WhatsAppIcon className="size-4" />}
+                {placing ? "Placing order…" : whatsapp ? "Checkout via WhatsApp" : "Place order"}
+              </span>
               <span className="tabular font-light">{formatPrice(catalog, subtotal + shipping)}</span>
             </button>
             <p className="text-[12px] leading-relaxed text-muted-foreground">
